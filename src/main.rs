@@ -35,13 +35,12 @@ fn load_foods(path: impl AsRef<Path>) -> Vec<Food> {
     let s = std::fs::read_to_string(path).unwrap();
     let foods: Vec<Food> = s
         .lines()
-        .map(|line| {
+        .filter_map(|line| {
             if line.starts_with('#') {
                 return None;
             }
             line.parse().ok()
         })
-        .flatten()
         .collect();
     foods
 }
