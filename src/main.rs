@@ -1,7 +1,20 @@
 //! macro tracker
 
-use std::{error::Error, path::Path, str::FromStr};
+use std::{
+    error::Error,
+    io::{self, stdout, Write},
+    path::Path,
+    str::FromStr,
+};
 
+use crossterm::{
+    cursor::{self, MoveTo},
+    event::{read, Event, KeyCode},
+    terminal::{self, disable_raw_mode, enable_raw_mode, Clear, ClearType},
+    ExecutableCommand, QueueableCommand,
+};
+
+#[allow(unused)]
 #[derive(Debug)]
 struct Food {
     name: String,
@@ -62,8 +75,75 @@ fn load_foods(path: impl AsRef<Path>) -> Vec<Food> {
 // Other enhancements:
 // 1. Use a real database, not a tsv file
 
-fn main() {
+/// draw a bounding box around the whole window with unicode light box drawing
+/// characters. TODO factor out the code to draw any rectangle
+fn draw_boundary<W>(w: &mut W) -> io::Result<()>
+where
+    W: QueueableCommand + Write,
+{
+    let (cols, rows) = terminal::size()?;
+
+    // top bar + top corners
+    w.queue(MoveTo(0, 0))?.write_all("┌".as_bytes())?;
+    for x in 1..cols - 1 {
+        w.queue(MoveTo(x, 0))?.write_all("─".as_bytes())?;
+    }
+    w.queue(MoveTo(cols, 0))?.write_all("┐".as_bytes())?;
+
+    // sides
+    for y in 1..rows - 1 {
+        w.queue(MoveTo(0, y))?.write_all("│".as_bytes())?;
+        w.queue(MoveTo(cols, y))?.write_all("│".as_bytes())?;
+    }
+
+    // bottom bar + bottom corners
+    w.queue(MoveTo(0, rows))?.write_all("└".as_bytes())?;
+    for x in 1..cols - 1 {
+        w.queue(MoveTo(x, rows))?.write_all("─".as_bytes())?;
+    }
+    w.queue(MoveTo(cols, rows))?.write_all("┘".as_bytes())?;
+
+    Ok(())
+}
+
+fn main() -> io::Result<()> {
     let path = "foods";
     let foods = load_foods(path);
-    dbg!(foods);
+
+    let mut stdout = stdout();
+    stdout.execute(Clear(ClearType::All))?;
+
+    draw_boundary(&mut stdout)?;
+
+    let (cols, rows) = terminal::size()?;
+    for (i, food) in foods.iter().enumerate() {
+        stdout.queue(cursor::MoveTo(cols / 2, rows / 2 + i as u16))?;
+        stdout.write_all(food.name.as_bytes())?;
+    }
+    stdout.flush()?;
+
+    enable_raw_mode()?;
+
+    loop {
+        match read()? {
+            Event::FocusGained => eprintln!("FocusGained"),
+            Event::FocusLost => eprintln!("FocusLost"),
+            Event::Key(event) if event.code == KeyCode::Char('q') => {
+                break;
+            }
+            Event::Key(event) => eprintln!("{:?}", event),
+            Event::Mouse(event) => eprintln!("{:?}", event),
+            Event::Paste(data) => eprintln!("{:?}", data),
+            Event::Resize(width, height) => {
+                eprintln!("New size {}x{}", width, height)
+            }
+        }
+    }
+
+    disable_raw_mode()?;
+
+    stdout.execute(Clear(ClearType::All))?;
+    stdout.flush()?;
+
+    Ok(())
 }
