@@ -79,6 +79,7 @@ struct Tui<'a, W> {
     w: &'a mut W,
     cols: u16,
     rows: u16,
+    foods: Vec<Food>,
 }
 
 impl<'a, W> Write for Tui<'a, W>
@@ -101,9 +102,14 @@ impl<'a, W> Tui<'a, W>
 where
     W: QueueableCommand + Write,
 {
-    fn new(w: &'a mut W) -> Self {
+    fn new(w: &'a mut W, foods: Vec<Food>) -> Self {
         let (cols, rows) = terminal::size().unwrap();
-        Self { w, cols, rows }
+        Self {
+            w,
+            cols,
+            rows,
+            foods,
+        }
     }
 
     /// calls `write_all` but also returns the number of chars written
@@ -111,6 +117,11 @@ where
         let ret = s.chars().count();
         self.write_all(s.as_bytes())?;
         Ok(ret)
+    }
+
+    fn resize(&mut self, w: u16, h: u16) {
+        self.cols = w;
+        self.rows = h;
     }
 
     /// draw a bounding box around the whole window with unicode light box
@@ -123,8 +134,7 @@ where
         for x in 1..self.cols - 1 {
             self.queue(MoveTo(x, 0))?.write_all("─".as_bytes())?;
         }
-        self.w
-            .queue(MoveTo(self.cols, 0))?
+        self.queue(MoveTo(self.cols, 0))?
             .write_all("┐".as_bytes())?;
 
         // sides
@@ -143,9 +153,12 @@ where
         self.queue(MoveTo(self.cols, rows))?
             .write_all("┘".as_bytes())?;
 
+        self.flush()?;
+
         Ok(())
     }
 
+    /// draw the help menu at the bottom of the screen
     fn draw_help(&mut self) -> io::Result<()> {
         self.queue(MoveTo(1, self.rows - HELP_HEIGHT + 1))?;
         let n = self.write_str("q Quit")?;
@@ -154,6 +167,27 @@ where
             self.rows - HELP_HEIGHT + 1,
         ))?;
         self.write_str("a Add Food")?;
+
+        self.flush()?;
+        Ok(())
+    }
+
+    fn render(&mut self) -> io::Result<()> {
+        self.execute(Clear(ClearType::All))?;
+        self.draw_boundary()?;
+        self.draw_help()
+    }
+
+    fn add_food(&mut self) -> io::Result<()> {
+        let (cols, rows) = terminal::size()?;
+        // this is so stupid, just to avoid the double borrow
+        let foods = std::mem::take(&mut self.foods);
+        for (i, food) in foods.iter().enumerate() {
+            self.queue(cursor::MoveTo(cols / 2, rows / 2 + i as u16))?;
+            self.write_all(food.name.as_bytes())?;
+        }
+        self.flush()?;
+        self.foods = foods;
         Ok(())
     }
 }
@@ -163,19 +197,9 @@ fn main() -> io::Result<()> {
     let foods = load_foods(path);
 
     let mut stdout = stdout();
-    let mut tui = Tui::new(&mut stdout);
+    let mut tui = Tui::new(&mut stdout, foods);
 
-    tui.execute(Clear(ClearType::All))?;
-
-    tui.draw_boundary()?;
-    tui.draw_help()?;
-
-    let (cols, rows) = terminal::size()?;
-    for (i, food) in foods.iter().enumerate() {
-        tui.queue(cursor::MoveTo(cols / 2, rows / 2 + i as u16))?;
-        tui.write_all(food.name.as_bytes())?;
-    }
-    tui.flush()?;
+    tui.render()?;
 
     enable_raw_mode()?;
 
@@ -183,14 +207,16 @@ fn main() -> io::Result<()> {
         match read()? {
             Event::FocusGained => eprintln!("FocusGained"),
             Event::FocusLost => eprintln!("FocusLost"),
-            Event::Key(event) if event.code == KeyCode::Char('q') => {
-                break;
+            Event::Key(event) if event.code == KeyCode::Char('q') => break,
+            Event::Key(event) if event.code == KeyCode::Char('a') => {
+                tui.add_food()?;
             }
             Event::Key(event) => eprintln!("{:?}", event),
             Event::Mouse(event) => eprintln!("{:?}", event),
             Event::Paste(data) => eprintln!("{:?}", data),
             Event::Resize(width, height) => {
-                eprintln!("New size {}x{}", width, height)
+                tui.resize(width, height);
+                tui.render()?;
             }
         }
     }
