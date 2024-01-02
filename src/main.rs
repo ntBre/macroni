@@ -75,36 +75,87 @@ fn load_foods(path: impl AsRef<Path>) -> Vec<Food> {
 // Other enhancements:
 // 1. Use a real database, not a tsv file
 
-/// draw a bounding box around the whole window with unicode light box drawing
-/// characters. TODO factor out the code to draw any rectangle
-fn draw_boundary<W>(w: &mut W) -> io::Result<()>
+struct Tui<'a, W> {
+    w: &'a mut W,
+    cols: u16,
+    rows: u16,
+}
+
+impl<'a, W> Write for Tui<'a, W>
 where
     W: QueueableCommand + Write,
 {
-    let (cols, rows) = terminal::size()?;
-    let rows = rows - 3; // reserve for command help
-
-    // top bar + top corners
-    w.queue(MoveTo(0, 0))?.write_all("┌".as_bytes())?;
-    for x in 1..cols - 1 {
-        w.queue(MoveTo(x, 0))?.write_all("─".as_bytes())?;
-    }
-    w.queue(MoveTo(cols, 0))?.write_all("┐".as_bytes())?;
-
-    // sides
-    for y in 1..rows {
-        w.queue(MoveTo(0, y))?.write_all("│".as_bytes())?;
-        w.queue(MoveTo(cols, y))?.write_all("│".as_bytes())?;
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.w.write(buf)
     }
 
-    // bottom bar + bottom corners
-    w.queue(MoveTo(0, rows))?.write_all("└".as_bytes())?;
-    for x in 1..cols - 1 {
-        w.queue(MoveTo(x, rows))?.write_all("─".as_bytes())?;
+    fn flush(&mut self) -> io::Result<()> {
+        self.w.flush()
     }
-    w.queue(MoveTo(cols, rows))?.write_all("┘".as_bytes())?;
+}
 
-    Ok(())
+const HELP_HEIGHT: u16 = 3;
+const HELP_PAD: u16 = 5;
+
+impl<'a, W> Tui<'a, W>
+where
+    W: QueueableCommand + Write,
+{
+    fn new(w: &'a mut W) -> Self {
+        let (cols, rows) = terminal::size().unwrap();
+        Self { w, cols, rows }
+    }
+
+    /// calls `write_all` but also returns the number of chars written
+    fn write_str(&mut self, s: &str) -> io::Result<usize> {
+        let ret = s.chars().count();
+        self.write_all(s.as_bytes())?;
+        Ok(ret)
+    }
+
+    /// draw a bounding box around the whole window with unicode light box
+    /// drawing characters. TODO factor out the code to draw any rectangle
+    fn draw_boundary(&mut self) -> io::Result<()> {
+        let rows = self.rows - HELP_HEIGHT; // reserve for command help
+
+        // top bar + top corners
+        self.queue(MoveTo(0, 0))?.write_all("┌".as_bytes())?;
+        for x in 1..self.cols - 1 {
+            self.queue(MoveTo(x, 0))?.write_all("─".as_bytes())?;
+        }
+        self.w
+            .queue(MoveTo(self.cols, 0))?
+            .write_all("┐".as_bytes())?;
+
+        // sides
+        for y in 1..rows {
+            self.queue(MoveTo(0, y))?.write_all("│".as_bytes())?;
+            self.w
+                .queue(MoveTo(self.cols, y))?
+                .write_all("│".as_bytes())?;
+        }
+
+        // bottom bar + bottom corners
+        self.queue(MoveTo(0, rows))?.write_all("└".as_bytes())?;
+        for x in 1..self.cols - 1 {
+            self.queue(MoveTo(x, rows))?.write_all("─".as_bytes())?;
+        }
+        self.queue(MoveTo(self.cols, rows))?
+            .write_all("┘".as_bytes())?;
+
+        Ok(())
+    }
+
+    fn draw_help(&mut self) -> io::Result<()> {
+        self.queue(MoveTo(1, self.rows - HELP_HEIGHT + 1))?;
+        let n = self.write_str("q Quit")?;
+        self.queue(MoveTo(
+            1 + n as u16 + HELP_PAD,
+            self.rows - HELP_HEIGHT + 1,
+        ))?;
+        self.write_str("a Add Food")?;
+        Ok(())
+    }
 }
 
 fn main() -> io::Result<()> {
@@ -112,16 +163,19 @@ fn main() -> io::Result<()> {
     let foods = load_foods(path);
 
     let mut stdout = stdout();
-    stdout.execute(Clear(ClearType::All))?;
+    let mut tui = Tui::new(&mut stdout);
 
-    draw_boundary(&mut stdout)?;
+    tui.execute(Clear(ClearType::All))?;
+
+    tui.draw_boundary()?;
+    tui.draw_help()?;
 
     let (cols, rows) = terminal::size()?;
     for (i, food) in foods.iter().enumerate() {
-        stdout.queue(cursor::MoveTo(cols / 2, rows / 2 + i as u16))?;
-        stdout.write_all(food.name.as_bytes())?;
+        tui.queue(cursor::MoveTo(cols / 2, rows / 2 + i as u16))?;
+        tui.write_all(food.name.as_bytes())?;
     }
-    stdout.flush()?;
+    tui.flush()?;
 
     enable_raw_mode()?;
 
@@ -143,8 +197,8 @@ fn main() -> io::Result<()> {
 
     disable_raw_mode()?;
 
-    stdout.execute(Clear(ClearType::All))?;
-    stdout.flush()?;
+    tui.execute(Clear(ClearType::All))?;
+    tui.flush()?;
 
     Ok(())
 }
