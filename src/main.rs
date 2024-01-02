@@ -82,6 +82,7 @@ where
     W: QueueableCommand + Write,
 {
     let (cols, rows) = terminal::size()?;
+    let rows = rows - 3; // reserve for command help
 
     // top bar + top corners
     w.queue(MoveTo(0, 0))?.write_all("┌".as_bytes())?;
@@ -91,7 +92,7 @@ where
     w.queue(MoveTo(cols, 0))?.write_all("┐".as_bytes())?;
 
     // sides
-    for y in 1..rows - 1 {
+    for y in 1..rows {
         w.queue(MoveTo(0, y))?.write_all("│".as_bytes())?;
         w.queue(MoveTo(cols, y))?.write_all("│".as_bytes())?;
     }
