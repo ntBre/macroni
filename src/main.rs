@@ -75,11 +75,20 @@ fn load_foods(path: impl AsRef<Path>) -> Vec<Food> {
 // Other enhancements:
 // 1. Use a real database, not a tsv file
 
+#[derive(Default)]
+struct Macros {
+    calories: f64,
+    carbs: f64,
+    fat: f64,
+    protein: f64,
+}
+
 struct Tui<'a, W> {
     w: &'a mut W,
     cols: u16,
     rows: u16,
     foods: Vec<Food>,
+    today: Macros,
 }
 
 impl<'a, W> Write for Tui<'a, W>
@@ -109,6 +118,7 @@ where
             cols,
             rows,
             foods,
+            today: Macros::default(),
         }
     }
 
@@ -122,6 +132,17 @@ where
     fn resize(&mut self, w: u16, h: u16) {
         self.cols = w;
         self.rows = h;
+    }
+
+    /// return the center of the screen
+    fn center(&self) -> (u16, u16) {
+        (self.cols / 2, self.rows / 2)
+    }
+
+    /// queue up a MoveTo command to x, y
+    fn move_to(&mut self, x: u16, y: u16) -> io::Result<()> {
+        self.queue(MoveTo(x, y))?;
+        Ok(())
     }
 
     /// draw a bounding box around the whole window with unicode light box
@@ -172,10 +193,29 @@ where
         Ok(())
     }
 
+    fn draw_today(&mut self) -> io::Result<()> {
+        let (x, y) = self.center();
+        let s = format!(
+            "Calories: {:.0} Protein: {:.0} Carbs: {:.0} Fat: {:.0}",
+            self.today.calories,
+            self.today.protein,
+            self.today.carbs,
+            self.today.fat
+        );
+        let x = x - s.len() as u16 / 2;
+        self.queue(MoveTo(x, y))?;
+        self.write_str("Today:")?;
+        self.move_to(x, y + 1)?;
+        self.write_str(&s)?;
+        self.flush()?;
+        Ok(())
+    }
+
     fn render(&mut self) -> io::Result<()> {
         self.execute(Clear(ClearType::All))?;
         self.draw_boundary()?;
-        self.draw_help()
+        self.draw_help()?;
+        self.draw_today()
     }
 
     fn add_food(&mut self) -> io::Result<()> {
