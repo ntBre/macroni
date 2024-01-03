@@ -6,3 +6,6 @@ screenshot.png:
 
 doc:
 	cargo doc --open
+
+run:
+	cargo run 2> log
