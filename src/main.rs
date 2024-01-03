@@ -369,6 +369,7 @@ fn main() -> io::Result<()> {
             }
             Event::Resize(width, height) => {
                 tui.resize(width, height);
+                // TODO what to render depends on tui.state
                 tui.render_main()?;
             }
             _ => {}
