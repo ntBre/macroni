@@ -8,7 +8,7 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{self, MoveTo},
+    cursor::{self, MoveDown, MoveLeft, MoveTo, MoveUp},
     event::{read, Event, KeyCode},
     terminal::{self, disable_raw_mode, enable_raw_mode, Clear, ClearType},
     ExecutableCommand, QueueableCommand,
@@ -89,6 +89,17 @@ enum State {
     AddFood,
 }
 
+impl State {
+    /// Returns `true` if the state is [`AddFood`].
+    ///
+    /// [`AddFood`]: State::AddFood
+    #[must_use]
+    fn is_add_food(&self) -> bool {
+        matches!(self, Self::AddFood)
+    }
+}
+
+#[allow(unused)]
 struct Tui<'a, W> {
     w: &'a mut W,
     cols: u16,
@@ -175,19 +186,17 @@ where
         x2: u16,
         y2: u16,
     ) -> Result<(), io::Error> {
-        self.queue(MoveTo(x1, y1))?.write_all("┌".as_bytes())?;
-        for x in 1..x2 - 1 {
+        for x in x1 + 1..x2 {
             self.queue(MoveTo(x, y1))?.write_all("─".as_bytes())?;
+            self.queue(MoveTo(x, y2))?.write_all("─".as_bytes())?;
         }
-        self.queue(MoveTo(x2, y1))?.write_all("┐".as_bytes())?;
-        for y in 1..y2 {
+        for y in y1 + 1..y2 {
             self.queue(MoveTo(x1, y))?.write_all("│".as_bytes())?;
             self.w.queue(MoveTo(x2, y))?.write_all("│".as_bytes())?;
         }
+        self.queue(MoveTo(x1, y1))?.write_all("┌".as_bytes())?;
+        self.queue(MoveTo(x2, y1))?.write_all("┐".as_bytes())?;
         self.queue(MoveTo(x1, y2))?.write_all("└".as_bytes())?;
-        for x in 1..x2 - 1 {
-            self.queue(MoveTo(x, y2))?.write_all("─".as_bytes())?;
-        }
         self.queue(MoveTo(x2, y2))?.write_all("┘".as_bytes())?;
         Ok(())
     }
@@ -225,6 +234,8 @@ where
     }
 
     fn render_main(&mut self) -> io::Result<()> {
+        self.state = State::Main;
+        self.execute(cursor::Hide)?;
         self.execute(Clear(ClearType::All))?;
         self.draw_boundary()?;
         self.draw_help()?;
@@ -235,15 +246,58 @@ where
         self.execute(Clear(ClearType::All))?;
         self.draw_boundary()?;
         self.state = State::AddFood;
-        let (cols, rows) = terminal::size()?;
-        // this is so stupid, just to avoid the double borrow
-        let foods = std::mem::take(&mut self.foods);
-        for (i, food) in foods.iter().enumerate() {
-            self.queue(cursor::MoveTo(cols / 2, rows / 2 + i as u16))?;
-            self.write_all(food.name.as_bytes())?;
+
+        // the idea here is to replicate an HTML form essentially:
+        //
+        // Food Name: [___________________]
+        //  Calories: [___________________]
+        //
+        // and so on, with Tab moving between the fields. We'll also need to
+        // show the cursor again here. Basics are actually easy, showing the
+        // completion candidates will be most of the work.
+
+        const LABELS: [&str; 5] = [
+            "Food Name:",
+            " Calories:",
+            "  Protein:",
+            "    Carbs:",
+            "      Fat:",
+        ];
+        const MAX_WIDTH: u16 = 10;
+        const INPUT_WIDTH: u16 = 50;
+
+        // so we want to center 10 + 50 + 1 characters in the width of the
+        // screen, and there are going to be 6 lines: 5 labels + accept
+
+        let x = self.cols / 2 - (MAX_WIDTH + INPUT_WIDTH + 1) / 2;
+        let y = self.rows / 2 - (3 * LABELS.len() + 1) as u16 / 2;
+
+        for (i, label) in LABELS.iter().enumerate() {
+            let i = 3 * i as u16;
+            self.move_to(x, y + i)?;
+            self.write_str(label)?;
+            self.draw_rect(
+                x + MAX_WIDTH + 1,
+                y + i - 1,
+                x + MAX_WIDTH + 1 + INPUT_WIDTH,
+                y + i + 1,
+            )?;
         }
+
+        // move the cursor into the first box and show it
+        self.move_to(x + MAX_WIDTH + 2, y)?;
+        self.queue(cursor::Show)?;
+
+        // let (cols, rows) = terminal::size()?;
+        // // this is so stupid, just to avoid the double borrow
+        // let foods = std::mem::take(&mut self.foods);
+        // for (i, food) in foods.iter().enumerate() {
+        //     self.queue(cursor::MoveTo(cols / 2, rows / 2 + i as u16))?;
+        //     self.write_all(food.name.as_bytes())?;
+        // }
+        // self.foods = foods;
+
         self.flush()?;
-        self.foods = foods;
         Ok(())
     }
 }
@@ -255,16 +309,52 @@ fn main() -> io::Result<()> {
     let mut stdout = stdout();
     let mut tui = Tui::new(&mut stdout, foods);
 
-    tui.execute(cursor::SavePosition)?.execute(cursor::Hide)?;
+    tui.execute(cursor::SavePosition)?;
 
     tui.render_main()?;
 
     enable_raw_mode()?;
 
+    let mut right = 0; // same as the 2 in x + MAX_WIDTH + 2 in add_food
     loop {
         match read()? {
             Event::FocusGained => eprintln!("FocusGained"),
             Event::FocusLost => eprintln!("FocusLost"),
+            Event::Key(event) if tui.state.is_add_food() => match event.code {
+                KeyCode::Char(c) => {
+                    tui.write_all(&[c as u8])?;
+                    right += 1;
+                    tui.flush()?;
+                }
+                KeyCode::Backspace => {
+                    tui.write_all(&[0x08, 0x20, 0x08])?;
+                    right -= 1;
+                    tui.flush()?;
+                }
+                KeyCode::Tab => {
+                    tui.execute(MoveDown(3))?;
+                    if right != 0 {
+                        // 0 defaults to 1...
+                        tui.execute(MoveLeft(right))?;
+                    }
+                    // zero actually isn't right here or in backtab. I need to
+                    // maintain the length of each field
+                    right = 0;
+                }
+                KeyCode::BackTab => {
+                    tui.execute(MoveUp(3))?;
+                    if right != 0 {
+                        // 0 defaults to 1...
+                        tui.execute(MoveLeft(right))?;
+                    }
+                    right = 0;
+                }
+                KeyCode::Enter => {
+                    // TODO do something with the entered data
+                    tui.render_main()?;
+                }
+                _ => {}
+            },
             Event::Key(event) if event.code == KeyCode::Char('q') => break,
             Event::Key(event) if event.code == KeyCode::Char('a') => {
                 tui.add_food()?;
