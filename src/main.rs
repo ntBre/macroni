@@ -3,7 +3,7 @@
 use std::{
     error::Error,
     io::{self, stdout, Write},
-    ops::AddAssign,
+    ops::{AddAssign, Mul},
     path::Path,
     str::FromStr,
 };
@@ -45,18 +45,23 @@ impl FromStr for Food {
     }
 }
 
-impl TryFrom<&[String; 6]> for Food {
+struct FoodQuantity(Food, f64);
+
+impl TryFrom<&[String; 7]> for FoodQuantity {
     type Error = Box<dyn Error>;
 
-    fn try_from(value: &[String; 6]) -> Result<Self, Self::Error> {
-        Ok(Self {
-            name: value[0].to_owned(),
-            calories: value[1].parse()?,
-            carbs: value[2].parse()?,
-            fat: value[3].parse()?,
-            protein: value[4].parse()?,
-            unit: value[5].to_owned(),
-        })
+    fn try_from(value: &[String; 7]) -> Result<Self, Self::Error> {
+        Ok(FoodQuantity(
+            Food {
+                name: value[0].to_owned(),
+                calories: value[1].parse()?,
+                carbs: value[2].parse()?,
+                fat: value[3].parse()?,
+                protein: value[4].parse()?,
+                unit: value[5].to_owned(),
+            },
+            value[6].parse()?,
+        ))
     }
 }
 
@@ -66,6 +71,20 @@ impl AddAssign<Food> for Macros {
         self.protein += rhs.protein;
         self.carbs += rhs.carbs;
         self.fat += rhs.fat;
+    }
+}
+
+impl Mul<f64> for Food {
+    type Output = Food;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self {
+            calories: self.calories * rhs,
+            carbs: self.carbs * rhs,
+            fat: self.fat * rhs,
+            protein: self.protein * rhs,
+            ..self
+        }
     }
 }
 
@@ -131,7 +150,7 @@ struct Tui<'a, W> {
     rows: u16,
     foods: Vec<Food>,
     today: Macros,
-    buf: [String; 6],
+    buf: [String; 7],
     state: State,
 }
 
@@ -165,7 +184,7 @@ where
             foods,
             today: Macros::default(),
             state: State::Main,
-            buf: [S; 6], // this has to be the same as the fields in Food
+            buf: [S; 7], // this has to be the same as the fields in Food + 1
         }
     }
 
@@ -284,13 +303,14 @@ where
         // show the cursor again here. Basics are actually easy, showing the
         // completion candidates will be most of the work.
 
-        const LABELS: [&str; 6] = [
+        const LABELS: [&str; 7] = [
             "Food Name:",
             " Calories:",
             "  Protein:",
             "    Carbs:",
             "      Fat:",
             "    Units:",
+            " Quantity:",
         ];
         const MAX_WIDTH: u16 = 10;
         const INPUT_WIDTH: u16 = 50;
@@ -374,9 +394,11 @@ where
                 }
             }
             KeyCode::Enter => {
-                if let Ok(food) = Food::try_from(&self.buf) {
+                if let Ok(FoodQuantity(food, n)) =
+                    FoodQuantity::try_from(&self.buf)
+                {
                     // TODO also store the food in the database
-                    self.today += food;
+                    self.today += food * n;
                 }
                 self.render_main()?;
             }
