@@ -1,5 +1,3 @@
-.PHONY: screenshot.png doc
-
 %.png:
 	sleep 5
 	maim -i $$(xdotool getactivewindow) $@
