@@ -408,6 +408,10 @@ where
                 }
                 self.render_main()?;
             }
+            KeyCode::Esc => {
+                // TODO other clean up? at least need to clean buf
+                self.render_main()?;
+            }
             _ => {}
         }
         Ok(())
