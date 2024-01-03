@@ -292,6 +292,12 @@ where
     fn add_food(&mut self) -> io::Result<()> {
         self.execute(Clear(ClearType::All))?;
         self.draw_boundary()?;
+        self.draw_help(&[
+            "Tab Next",
+            "S-Tab Prev",
+            "Ret Submit",
+            "Esc Cancel",
+        ])?;
         self.state = State::AddFood;
 
         // the idea here is to replicate an HTML form essentially:
