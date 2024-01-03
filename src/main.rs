@@ -239,6 +239,8 @@ fn main() -> io::Result<()> {
     let mut stdout = stdout();
     let mut tui = Tui::new(&mut stdout, foods);
 
+    tui.execute(cursor::SavePosition)?.execute(cursor::Hide)?;
+
     tui.render()?;
 
     enable_raw_mode()?;
@@ -265,6 +267,8 @@ fn main() -> io::Result<()> {
 
     tui.execute(Clear(ClearType::All))?;
     tui.flush()?;
+    tui.execute(cursor::RestorePosition)?
+        .execute(cursor::Show)?;
 
     Ok(())
 }
