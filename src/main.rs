@@ -360,8 +360,6 @@ fn main() -> io::Result<()> {
     let mut right = 0; // same as the 2 in x + MAX_WIDTH + 2 in add_food
     loop {
         match read()? {
-            Event::FocusGained => eprintln!("FocusGained"),
-            Event::FocusLost => eprintln!("FocusLost"),
             Event::Key(event) if tui.state.is_add_food() => {
                 tui.food_form(event, &mut right)?
             }
@@ -369,13 +367,11 @@ fn main() -> io::Result<()> {
             Event::Key(event) if event.code == KeyCode::Char('a') => {
                 tui.add_food()?;
             }
-            Event::Key(event) => eprintln!("{:?}", event),
-            Event::Mouse(event) => eprintln!("{:?}", event),
-            Event::Paste(data) => eprintln!("{:?}", data),
             Event::Resize(width, height) => {
                 tui.resize(width, height);
                 tui.render_main()?;
             }
+            _ => {}
         }
     }
 
