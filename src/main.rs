@@ -83,12 +83,19 @@ struct Macros {
     protein: f64,
 }
 
+/// the current state of the program
+enum State {
+    Main,
+    AddFood,
+}
+
 struct Tui<'a, W> {
     w: &'a mut W,
     cols: u16,
     rows: u16,
     foods: Vec<Food>,
     today: Macros,
+    state: State,
 }
 
 impl<'a, W> Write for Tui<'a, W>
@@ -119,6 +126,7 @@ where
             rows,
             foods,
             today: Macros::default(),
+            state: State::Main,
         }
     }
 
@@ -219,6 +227,9 @@ where
     }
 
     fn add_food(&mut self) -> io::Result<()> {
+        self.execute(Clear(ClearType::All))?;
+        self.draw_boundary()?;
+        self.state = State::AddFood;
         let (cols, rows) = terminal::size()?;
         // this is so stupid, just to avoid the double borrow
         let foods = std::mem::take(&mut self.foods);
