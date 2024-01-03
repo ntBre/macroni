@@ -300,6 +300,48 @@ where
         self.flush()?;
         Ok(())
     }
+
+    fn food_form(
+        &mut self,
+        event: crossterm::event::KeyEvent,
+        right: &mut u16,
+    ) -> Result<(), io::Error> {
+        Ok(match event.code {
+            KeyCode::Char(c) => {
+                self.write_all(&[c as u8])?;
+                *right += 1;
+                self.flush()?;
+            }
+            KeyCode::Backspace => {
+                self.write_all(&[0x08, 0x20, 0x08])?;
+                *right -= 1;
+                self.flush()?;
+            }
+            KeyCode::Tab => {
+                self.execute(MoveDown(3))?;
+                if *right != 0 {
+                    // 0 defaults to 1...
+                    self.execute(MoveLeft(*right))?;
+                }
+                // zero actually isn't right here or in backtab. I need to
+                // maintain the length of each field
+                *right = 0;
+            }
+            KeyCode::BackTab => {
+                self.execute(MoveUp(3))?;
+                if *right != 0 {
+                    // 0 defaults to 1...
+                    self.execute(MoveLeft(*right))?;
+                }
+                *right = 0;
+            }
+            KeyCode::Enter => {
+                // TODO do something with the entered data
+                self.render_main()?;
+            }
+            _ => {}
+        })
+    }
 }
 
 fn main() -> io::Result<()> {
@@ -320,41 +362,9 @@ fn main() -> io::Result<()> {
         match read()? {
             Event::FocusGained => eprintln!("FocusGained"),
             Event::FocusLost => eprintln!("FocusLost"),
-            Event::Key(event) if tui.state.is_add_food() => match event.code {
-                KeyCode::Char(c) => {
-                    tui.write_all(&[c as u8])?;
-                    right += 1;
-                    tui.flush()?;
-                }
-                KeyCode::Backspace => {
-                    tui.write_all(&[0x08, 0x20, 0x08])?;
-                    right -= 1;
-                    tui.flush()?;
-                }
-                KeyCode::Tab => {
-                    tui.execute(MoveDown(3))?;
-                    if right != 0 {
-                        // 0 defaults to 1...
-                        tui.execute(MoveLeft(right))?;
-                    }
-                    // zero actually isn't right here or in backtab. I need to
-                    // maintain the length of each field
-                    right = 0;
-                }
-                KeyCode::BackTab => {
-                    tui.execute(MoveUp(3))?;
-                    if right != 0 {
-                        // 0 defaults to 1...
-                        tui.execute(MoveLeft(right))?;
-                    }
-                    right = 0;
-                }
-                KeyCode::Enter => {
-                    // TODO do something with the entered data
-                    tui.render_main()?;
-                }
-                _ => {}
-            },
+            Event::Key(event) if tui.state.is_add_food() => {
+                tui.food_form(event, &mut right)?
+            }
             Event::Key(event) if event.code == KeyCode::Char('q') => break,
             Event::Key(event) if event.code == KeyCode::Char('a') => {
                 tui.add_food()?;
