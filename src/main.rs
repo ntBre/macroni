@@ -3,6 +3,7 @@
 use std::{
     error::Error,
     io::{self, stdout, Write},
+    ops::AddAssign,
     path::Path,
     str::FromStr,
 };
@@ -56,6 +57,15 @@ impl TryFrom<&[String; 6]> for Food {
             protein: value[4].parse()?,
             unit: value[5].to_owned(),
         })
+    }
+}
+
+impl AddAssign<Food> for Macros {
+    fn add_assign(&mut self, rhs: Food) {
+        self.calories += rhs.calories;
+        self.protein += rhs.protein;
+        self.carbs += rhs.carbs;
+        self.fat += rhs.fat;
     }
 }
 
@@ -365,8 +375,8 @@ where
             }
             KeyCode::Enter => {
                 if let Ok(food) = Food::try_from(&self.buf) {
-                    // TODO do something with the entered data
-                    dbg!(food);
+                    // TODO also store the food in the database
+                    self.today += food;
                 }
                 self.render_main()?;
             }
