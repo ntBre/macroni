@@ -249,15 +249,15 @@ where
     }
 
     /// draw the help menu at the bottom of the screen
-    fn draw_help(&mut self) -> io::Result<()> {
-        self.queue(MoveTo(1, self.rows - HELP_HEIGHT + 1))?;
-        let n = self.write_str("q Quit")?;
-        self.queue(MoveTo(
-            1 + n as u16 + HELP_PAD,
-            self.rows - HELP_HEIGHT + 1,
-        ))?;
-        self.write_str("a Add Food")?;
-
+    fn draw_help(&mut self, labels: &[&str]) -> io::Result<()> {
+        let mut n = 0;
+        for (i, label) in labels.iter().enumerate() {
+            self.move_to(
+                1 + n as u16 + i as u16 * HELP_PAD,
+                self.rows - HELP_HEIGHT + 1,
+            )?;
+            n += self.write_str(label)?;
+        }
         self.flush()?;
         Ok(())
     }
@@ -285,7 +285,7 @@ where
         self.execute(cursor::Hide)?;
         self.execute(Clear(ClearType::All))?;
         self.draw_boundary()?;
-        self.draw_help()?;
+        self.draw_help(&["q Quit", "a Add Food"])?;
         self.draw_today()
     }
 
