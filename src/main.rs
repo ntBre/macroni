@@ -211,7 +211,7 @@ where
         Ok(())
     }
 
-    fn render(&mut self) -> io::Result<()> {
+    fn render_main(&mut self) -> io::Result<()> {
         self.execute(Clear(ClearType::All))?;
         self.draw_boundary()?;
         self.draw_help()?;
@@ -241,7 +241,7 @@ fn main() -> io::Result<()> {
 
     tui.execute(cursor::SavePosition)?.execute(cursor::Hide)?;
 
-    tui.render()?;
+    tui.render_main()?;
 
     enable_raw_mode()?;
 
@@ -258,7 +258,7 @@ fn main() -> io::Result<()> {
             Event::Paste(data) => eprintln!("{:?}", data),
             Event::Resize(width, height) => {
                 tui.resize(width, height);
-                tui.render()?;
+                tui.render_main()?;
             }
         }
     }
