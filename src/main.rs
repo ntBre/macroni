@@ -44,6 +44,21 @@ impl FromStr for Food {
     }
 }
 
+impl TryFrom<&[String; 6]> for Food {
+    type Error = Box<dyn Error>;
+
+    fn try_from(value: &[String; 6]) -> Result<Self, Self::Error> {
+        Ok(Self {
+            name: value[0].to_owned(),
+            calories: value[1].parse()?,
+            carbs: value[2].parse()?,
+            fat: value[3].parse()?,
+            protein: value[4].parse()?,
+            unit: value[5].to_owned(),
+        })
+    }
+}
+
 fn load_foods(path: impl AsRef<Path>) -> Vec<Food> {
     let s = std::fs::read_to_string(path).unwrap();
     let foods: Vec<Food> = s
@@ -106,6 +121,7 @@ struct Tui<'a, W> {
     rows: u16,
     foods: Vec<Food>,
     today: Macros,
+    buf: [String; 6],
     state: State,
 }
 
@@ -131,6 +147,7 @@ where
 {
     fn new(w: &'a mut W, foods: Vec<Food>) -> Self {
         let (cols, rows) = terminal::size().unwrap();
+        const S: String = String::new();
         Self {
             w,
             cols,
@@ -138,6 +155,7 @@ where
             foods,
             today: Macros::default(),
             state: State::Main,
+            buf: [S; 6], // this has to be the same as the fields in Food
         }
     }
 
@@ -256,12 +274,13 @@ where
         // show the cursor again here. Basics are actually easy, showing the
         // completion candidates will be most of the work.
 
-        const LABELS: [&str; 5] = [
+        const LABELS: [&str; 6] = [
             "Food Name:",
             " Calories:",
             "  Protein:",
             "    Carbs:",
             "      Fat:",
+            "    Units:",
         ];
         const MAX_WIDTH: u16 = 10;
         const INPUT_WIDTH: u16 = 50;
@@ -305,42 +324,55 @@ where
         &mut self,
         event: crossterm::event::KeyEvent,
         right: &mut u16,
+        field: &mut u16,
     ) -> Result<(), io::Error> {
-        Ok(match event.code {
+        match event.code {
             KeyCode::Char(c) => {
                 self.write_all(&[c as u8])?;
+                self.buf[*field as usize].push(c);
                 *right += 1;
                 self.flush()?;
             }
             KeyCode::Backspace => {
                 self.write_all(&[0x08, 0x20, 0x08])?;
+                self.buf[*field as usize].pop();
                 *right -= 1;
                 self.flush()?;
             }
             KeyCode::Tab => {
-                self.execute(MoveDown(3))?;
-                if *right != 0 {
-                    // 0 defaults to 1...
-                    self.execute(MoveLeft(*right))?;
+                if *field < self.buf.len() as u16 - 1 {
+                    *field += 1;
+                    self.execute(MoveDown(3))?;
+                    if *right != 0 {
+                        // 0 defaults to 1...
+                        self.execute(MoveLeft(*right))?;
+                    }
+                    // zero actually isn't right here or in backtab. I need to
+                    // maintain the length of each field
+                    *right = 0;
                 }
-                // zero actually isn't right here or in backtab. I need to
-                // maintain the length of each field
-                *right = 0;
             }
             KeyCode::BackTab => {
-                self.execute(MoveUp(3))?;
-                if *right != 0 {
-                    // 0 defaults to 1...
-                    self.execute(MoveLeft(*right))?;
+                if *field > 0 {
+                    *field -= 1;
+                    self.execute(MoveUp(3))?;
+                    if *right != 0 {
+                        // 0 defaults to 1...
+                        self.execute(MoveLeft(*right))?;
+                    }
+                    *right = 0;
                 }
-                *right = 0;
             }
             KeyCode::Enter => {
-                // TODO do something with the entered data
+                if let Ok(food) = Food::try_from(&self.buf) {
+                    // TODO do something with the entered data
+                    dbg!(food);
+                }
                 self.render_main()?;
             }
             _ => {}
-        })
+        }
+        Ok(())
     }
 }
 
@@ -358,10 +390,11 @@ fn main() -> io::Result<()> {
     enable_raw_mode()?;
 
     let mut right = 0; // same as the 2 in x + MAX_WIDTH + 2 in add_food
+    let mut field = 0;
     loop {
         match read()? {
             Event::Key(event) if tui.state.is_add_food() => {
-                tui.food_form(event, &mut right)?
+                tui.food_form(event, &mut right, &mut field)?
             }
             Event::Key(event) if event.code == KeyCode::Char('q') => break,
             Event::Key(event) if event.code == KeyCode::Char('a') => {
