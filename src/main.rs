@@ -156,34 +156,39 @@ where
     /// draw a bounding box around the whole window with unicode light box
     /// drawing characters. TODO factor out the code to draw any rectangle
     fn draw_boundary(&mut self) -> io::Result<()> {
-        let rows = self.rows - HELP_HEIGHT; // reserve for command help
+        let (x1, y1) = (0, 0);
+        let (x2, y2) = (self.cols, self.rows - HELP_HEIGHT);
 
-        // top bar + top corners
-        self.queue(MoveTo(0, 0))?.write_all("┌".as_bytes())?;
-        for x in 1..self.cols - 1 {
-            self.queue(MoveTo(x, 0))?.write_all("─".as_bytes())?;
-        }
-        self.queue(MoveTo(self.cols, 0))?
-            .write_all("┐".as_bytes())?;
-
-        // sides
-        for y in 1..rows {
-            self.queue(MoveTo(0, y))?.write_all("│".as_bytes())?;
-            self.w
-                .queue(MoveTo(self.cols, y))?
-                .write_all("│".as_bytes())?;
-        }
-
-        // bottom bar + bottom corners
-        self.queue(MoveTo(0, rows))?.write_all("└".as_bytes())?;
-        for x in 1..self.cols - 1 {
-            self.queue(MoveTo(x, rows))?.write_all("─".as_bytes())?;
-        }
-        self.queue(MoveTo(self.cols, rows))?
-            .write_all("┘".as_bytes())?;
+        self.draw_rect(x1, y1, x2, y2)?;
 
         self.flush()?;
 
+        Ok(())
+    }
+
+    /// draw the rectangle from the upper left corner (x1, y1) to the bottom
+    /// right corner (x2, y2)
+    fn draw_rect(
+        &mut self,
+        x1: u16,
+        y1: u16,
+        x2: u16,
+        y2: u16,
+    ) -> Result<(), io::Error> {
+        self.queue(MoveTo(x1, y1))?.write_all("┌".as_bytes())?;
+        for x in 1..x2 - 1 {
+            self.queue(MoveTo(x, y1))?.write_all("─".as_bytes())?;
+        }
+        self.queue(MoveTo(x2, y1))?.write_all("┐".as_bytes())?;
+        for y in 1..y2 {
+            self.queue(MoveTo(x1, y))?.write_all("│".as_bytes())?;
+            self.w.queue(MoveTo(x2, y))?.write_all("│".as_bytes())?;
+        }
+        self.queue(MoveTo(x1, y2))?.write_all("└".as_bytes())?;
+        for x in 1..x2 - 1 {
+            self.queue(MoveTo(x, y2))?.write_all("─".as_bytes())?;
+        }
+        self.queue(MoveTo(x2, y2))?.write_all("┘".as_bytes())?;
         Ok(())
     }
 
