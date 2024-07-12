@@ -37,6 +37,13 @@
 		  <input type="submit" value="Submit" />
 		</div>
 	  </form>
+
+	  Current foods:
+	  <ol>
+	  {% for f in foods %}
+	  <li>{{f.name}}</li>
+	  {% endfor %}
+	  </ol>
 	</main>
   </body>
 </html>

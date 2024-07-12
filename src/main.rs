@@ -7,16 +7,21 @@ use axum::{
     routing::{get, post},
     Form, Router,
 };
-use rusqlite::Connection;
+use rusqlite::{Connection, Row};
 use serde::Deserialize;
 use tokio::{net::TcpListener, sync::Mutex};
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct Index {}
+struct Index {
+    foods: Vec<Food>,
+}
 
-async fn index() -> Html<String> {
-    Index {}.render().unwrap().into()
+async fn index(State(state): State<Arc<Mutex<App>>>) -> Html<String> {
+    Index { foods: state.lock().await.table.get_foods().unwrap() }
+        .render()
+        .unwrap()
+        .into()
 }
 
 async fn add_food(
@@ -78,6 +83,32 @@ impl Table {
             ),
         )?;
         Ok(())
+    }
+
+    fn get_foods(&self) -> Result<Vec<Food>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT name, calories, carbs, fat, protein, unit FROM foods",
+        )?;
+        let res = stmt
+            .query_map((), |row| Food::try_from(row))?
+            .map(Result::unwrap)
+            .collect();
+        Ok(res)
+    }
+}
+
+impl TryFrom<&Row<'_>> for Food {
+    type Error = rusqlite::Error;
+
+    fn try_from(row: &Row<'_>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            name: row.get(0)?,
+            calories: row.get(1)?,
+            carbs: row.get(2)?,
+            fat: row.get(3)?,
+            protein: row.get(4)?,
+            unit: row.get(5)?,
+        })
     }
 }
 
