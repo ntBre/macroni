@@ -32,7 +32,6 @@ async fn add_food(
     Redirect::to("/")
 }
 
-#[allow(unused)]
 #[derive(Debug, Deserialize)]
 struct Food {
     name: String,
