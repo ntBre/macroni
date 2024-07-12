@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>macroni</title>
+  </head>
+  <body>
+	<main>
+	  Add a food to the database:
+	  <form action="/add-food" method="post">
+		<div>
+		  <label for="name">Food name: </label>
+		  <input type="text" name="name" id="name" required />
+		</div>
+		<div>
+		  <label for="calories">Calories: </label>
+		  <input type="text" name="calories" id="calories" required />
+		</div>
+		<div>
+		  <label for="carbs">Carbs: </label>
+		  <input type="text" name="carbs" id="carbs" required />
+		</div>
+		<div>
+		  <label for="fat">Fat: </label>
+		  <input type="text" name="fat" id="fat" required />
+		</div>
+		<div>
+		  <label for="protein">Protein: </label>
+		  <input type="text" name="protein" id="protein" required />
+		</div>
+		<div>
+		  <label for="unit">Unit: </label>
+		  <input type="text" name="unit" id="unit" required />
+		</div>
+		<div>
+		  <input type="submit" value="Submit" />
+		</div>
+	  </form>
+	</main>
+  </body>
+</html>
