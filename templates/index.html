@@ -38,12 +38,33 @@
 		</div>
 	  </form>
 
+	  <br>
+
 	  Current foods:
-	  <ol>
-	  {% for f in foods %}
-	  <li>{{f.name}}</li>
-	  {% endfor %}
-	  </ol>
+	  <table>
+		<thead>
+		  <tr>
+			<th>Name</th>
+			<th>Calories</th>
+			<th>Carbs</th>
+			<th>Fat</th>
+			<th>Protein</th>
+			<th>Units</th>
+		  </tr>
+		</thead>
+		<tbody>
+		{% for f in foods %}
+		<tr>
+		  <td>{{f.name}}</td>
+		  <td>{{f.calories}}</td>
+		  <td>{{f.carbs}}</td>
+		  <td>{{f.fat}}</td>
+		  <td>{{f.protein}}</td>
+		  <td>{{f.unit}}</td>
+		</tr>
+		{% endfor %}
+		</tbody>
+	  </table>
 	</main>
   </body>
 </html>
