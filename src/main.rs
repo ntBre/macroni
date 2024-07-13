@@ -88,11 +88,8 @@ impl Table {
         let mut stmt = self.conn.prepare(
             "SELECT name, calories, carbs, fat, protein, unit FROM foods",
         )?;
-        let res = stmt
-            .query_map((), |row| Food::try_from(row))?
-            .map(Result::unwrap)
-            .collect();
-        Ok(res)
+        let res = stmt.query_map((), |row| Food::try_from(row))?;
+        res.collect()
     }
 }
 
