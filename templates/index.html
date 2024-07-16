@@ -5,6 +5,9 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>macroni</title>
   </head>
+
+  <script type="text/javascript" src="js/main.js"></script>
+
   <body>
 	<main>
 	  Add a food to the database:
@@ -50,6 +53,7 @@
 			<th>Fat</th>
 			<th>Protein</th>
 			<th>Units</th>
+			<th>Delete</th>
 		  </tr>
 		</thead>
 		<tbody>
@@ -61,6 +65,7 @@
 		  <td>{{f.fat}}</td>
 		  <td>{{f.protein}}</td>
 		  <td>{{f.unit}}</td>
+		  <td><button onclick="deleteRow({{f.id.unwrap()}})">Delete</button></td>
 		</tr>
 		{% endfor %}
 		</tbody>
