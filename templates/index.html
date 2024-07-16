@@ -10,7 +10,29 @@
 
   <body>
 	<main>
-	  Add a food to the database:
+	  <h2>Today's totals:</h2>
+	  <table rules="all" style="text-align:right">
+		<thead>
+		  <tr>
+			<th>Date</th>
+			<th>Calories</th>
+			<th>Carbs</th>
+			<th>Fat</th>
+			<th>Protein</th>
+		  </tr>
+		</thead>
+		<tbody>
+		<tr>
+		  <td>{{today.date}}</td>
+		  <td>{{today.calories}}</td>
+		  <td>{{today.carbs}}</td>
+		  <td>{{today.fat}}</td>
+		  <td>{{today.protein}}</td>
+		</tr>
+		</tbody>
+	  </table>
+
+	  <h2>Add a food to the database:</h2>
 	  <form action="/add-food" method="post">
 		<div>
 		  <label for="name">Food name: </label>
@@ -43,7 +65,7 @@
 
 	  <br>
 
-	  Current foods:
+	  <h2>Current foods:</h2>
 	  <table>
 		<thead>
 		  <tr>
@@ -54,6 +76,7 @@
 			<th>Protein</th>
 			<th>Units</th>
 			<th>Delete</th>
+			<th>Add</th>
 		  </tr>
 		</thead>
 		<tbody>
@@ -66,6 +89,11 @@
 		  <td>{{f.protein}}</td>
 		  <td>{{f.unit}}</td>
 		  <td><button onclick="deleteRow({{f.id.unwrap()}})">Delete</button></td>
+		  <td>
+			<button onclick="addToday({{f.id.unwrap()}}, '{{today.date}}')">
+			  Add
+			</button>
+		  </td>
 		</tr>
 		{% endfor %}
 		</tbody>
