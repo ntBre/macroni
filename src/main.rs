@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Form, Router,
 };
+use log::debug;
 use rusqlite::{Connection, Row};
 use serde::Deserialize;
 use tokio::{net::TcpListener, sync::Mutex};
@@ -81,7 +82,7 @@ impl Table {
     }
 
     fn add_food(&self, food: Food) -> Result<(), rusqlite::Error> {
-        eprintln!("adding {food:?} to database");
+        debug!("adding {food:?} to database");
         self.conn.execute(
             "INSERT OR IGNORE INTO foods(
                 name, calories, carbs, fat, protein, unit
@@ -100,7 +101,7 @@ impl Table {
     }
 
     fn delete_food(&self, id: usize) -> Result<(), rusqlite::Error> {
-        eprintln!("deleting food {id} from database");
+        debug!("deleting food {id} from database");
         self.conn
             .execute("DELETE FROM foods WHERE id = ?", (id,))
             .map(|_| ())
@@ -137,6 +138,7 @@ struct App {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let app = Router::new()
         .route("/", get(index))
         .route("/add-food", post(add_food))
